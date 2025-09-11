@@ -6,9 +6,9 @@
 ### **The Engineering Pivot: A More Resilient Solution**: When automated methods fail on a new OS, we fall back to a more manual but more controlled process. Since Oracle Linux is a derivative of Red Hat Enterprise Linux (RHEL), we can confidently use the official Docker repository for its closest, stable relative: **CentOS 9**.
 
 #**Action Plan:**
-#1.  Create a new script file named `host_setup_v_prod.sh` in your home directory.
+#1.  Create a new script file named `host_setup_prod.sh` in your home directory.
 #2.  Paste the content below into the file.
-#3.  Make it executable: `chmod +x host_setup_v_prod.sh`.
+#3.  Make it executable: `chmod +x host_setup_prod.sh`.
 #4.  Run it: `./host_setup_v.sh`.
 
 #--- START OF FILE host_setup_v_prod.sh ---
