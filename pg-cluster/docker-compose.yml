@@ -30,7 +30,7 @@ services:
   pgbouncer:
     # CSA-1: Using the official postgres image itself, which includes pgbouncer.
     # This is the most stable and secure long-term solution.
-    image: postgres:16
+    image: postgres:17
     container_name: postgres_pgbouncer
     restart: unless-stopped
     depends_on:
