@@ -15,6 +15,17 @@
 #!/bin/bash
 set -euo pipefail
 
+# Create a dedicated, secure directory in /opt
+sudo mkdir -p /opt/secrets
+sudo chown opc:opc /opt/secrets
+sudo chmod 700 /opt/secrets #
+
+# Generate a new, strong password and save it to the file
+openssl rand -base64 24 > /opt/secrets/trading_app_password.txt
+
+# Let's look at it once to know what it is
+cat /opt/secrets/trading_app_password.txt
+
 # Create the entire folder structure correctly with a single command
 #sudo mkdir -p /opt/pg-cluster/{bin,config/postgres,config/pgbouncer,data/postgres,logs/{postgres,pgbouncer},backups/{daily,weekly}}
 sudo git clone https://github.com/venoajie/server_setting.git
