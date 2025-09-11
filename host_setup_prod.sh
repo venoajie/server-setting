@@ -88,4 +88,4 @@ echo "!!! CRITICAL: You MUST log out and log back in for all changes to take eff
 #    *   Run `crontab -e`
 #    *   Add the following line and save the file:
 #    ```
-    5 3 * * * /opt/pg-cluster/bin/backup.sh
+#    5 3 * * * /opt/pg-cluster/bin/backup.sh
