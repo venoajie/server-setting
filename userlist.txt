@@ -1,0 +1,2 @@
+"postgres_admin" "YOUR_STRONG_SUPERUSER_PASSWORD_HERE"
+"trading_app_user" "YOUR_STRONG_APP_USER_PASSWORD_HERE"
