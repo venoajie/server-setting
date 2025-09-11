@@ -28,18 +28,21 @@ services:
           memory: '14g'
 
   pgbouncer:
-    image: edoburu/pgbouncer:1.22.1
+    # CSA-1: Using the official postgres image itself, which includes pgbouncer.
+    # This is the most stable and secure long-term solution.
+    image: postgres:16
     container_name: postgres_pgbouncer
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # SRE-1: We must mount our own config files as this image isn't pre-configured for pgbouncer.
     volumes:
       - ./config/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./config/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
       - ./logs/pgbouncer:/var/log/pgbouncer
+    # SRE-1: Override the default command to run pgbouncer instead of postgres.
+    command: pgbouncer /etc/pgbouncer/pgbouncer.ini
     ports:
       - "6432:6432"
     networks:
