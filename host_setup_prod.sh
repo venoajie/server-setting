@@ -16,7 +16,12 @@
 set -euo pipefail
 
 # Create the entire folder structure correctly with a single command
-sudo mkdir -p /opt/pg-cluster/{bin,config/postgres,config/pgbouncer,data/postgres,logs/{postgres,pgbouncer},backups/{daily,weekly}}
+#sudo mkdir -p /opt/pg-cluster/{bin,config/postgres,config/pgbouncer,data/postgres,logs/{postgres,pgbouncer},backups/{daily,weekly}}
+sudo git clone https://github.com/venoajie/server_setting.git
+sudo mv server_setting/pg-cluster pg-cluster
+rm -rf server_setting
+#Make the script executable:
+chmod +x /opt/pg-cluster/bin/backup.sh
 
 # Set the correct ownership so your 'opc' user can manage it
 sudo chown -R opc:opc /opt/pg-cluster/
@@ -77,3 +82,10 @@ sudo sysctl --system
 echo "Host preparation complete."
 echo "!!! CRITICAL: You MUST log out and log back in for all changes to take effect. !!!"
 #--- END OF FILE ---
+
+#**Action:**
+#  Add it to your crontab to run daily at 3:05 AM:
+#    *   Run `crontab -e`
+#    *   Add the following line and save the file:
+#    ```
+    5 3 * * * /opt/pg-cluster/bin/backup.sh
