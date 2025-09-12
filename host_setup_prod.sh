@@ -16,15 +16,22 @@
 set -euo pipefail
 
 # Create a dedicated, secure directory in /opt
+echo "Create a dedicated, secure directory in /opt..."
 sudo mkdir -p /opt/secrets
 sudo chown opc:opc /opt/secrets
-sudo chmod 700 /opt/secrets #
+sudo chmod 700 /opt/secrets
 
 # Generate a new, strong password and save it to the file
 openssl rand -base64 24 > /opt/secrets/trading_app_password.txt
 
 # Let's look at it once to know what it is
+echo "trading_app_password..."
 cat /opt/secrets/trading_app_password.txt
+
+#**Create the `apps` directory:**
+echo "Create a dedicated apps directory in /opt..."
+sudo mkdir -p /opt/apps
+sudo chown opc:opc /opt/apps
 
 # Create the entire folder structure correctly with a single command
 #sudo mkdir -p /opt/pg-cluster/{bin,config/postgres,config/pgbouncer,data/postgres,logs/{postgres,pgbouncer},backups/{daily,weekly}}
@@ -100,3 +107,9 @@ echo "!!! CRITICAL: You MUST log out and log back in for all changes to take eff
 #    *   Add the following line and save the file:
 #    ```
 #    5 3 * * * /opt/pg-cluster/bin/backup.sh
+
+
+#If you ever need to rotate the password, you only need to:
+#1.  Update the `/opt/secrets/trading_app_password.txt` file.
+#2.  Update the password in `userlist.txt`.
+#3.  Restart both the `pg-cluster` and `trading-app` stacks (`docker compose restart`).
