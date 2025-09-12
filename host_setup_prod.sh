@@ -23,6 +23,7 @@ sudo chmod 700 /opt/secrets
 
 # Generate a new, strong password and save it to the file
 openssl rand -base64 24 > /opt/secrets/trading_app_password.txt
+#openssl rand -base64 24 > /opt/secrets/trading_app_password.txt
 
 # Let's look at it once to know what it is
 echo "trading_app_password..."
