@@ -1,0 +1,68 @@
+
+#### **Prompt 2: Performing a Manual Database Backup**
+
+```
+Role: Act as a senior engineer (`csa-1`, `sre-1`, `dbre-1`).
+
+Objective: Provide the single, best-practice command to perform a manual backup of the "[DB_NAME]" database.
+
+The command must:
+1. Run from the host machine.
+2. Use `docker exec` to run `pg_dump` inside the `postgres-db` container.
+3. Use the custom, compressed format (`-Fc`).
+4. Save the output to a file in the `/srv/backups/` directory with a timestamp in the filename.
+5. Use the "platform_admin" user for the backup.
+```
+
+#### **Prompt 3: Restoring a Database from a Backup**
+
+```
+Role: Act as a senior engineer (`csa-1`, `sre-1`, `dbre-1`).
+
+Objective: Provide the step-by-step commands to restore a PostgreSQL backup file located at "/srv/backups/[BACKUP_FILENAME].dump" into a new database named "[NEW_DB_NAME]".
+
+The process must include:
+1. The `psql` command to create the new, empty database.
+2. The `docker exec` command that pipes the backup file into `pg_restore`.
+3. All commands must be run from the host machine.
+```
+
+---
+
+### **2. Prompts to Improve Current Settings & Resolve Technical Debt**
+
+#### **Prompt 4: Fixing the Automated Backup Script (CRITICAL DEBT)**
+
+```
+Role: Act as a senior engineer (`csa-1`, `sre-1`, `dbre-1`).
+
+Objective: Resolve the critical technical debt of the non-functional backup script. The current script at `/srv/apps/backup.sh` hangs due to a `docker exec` I/O redirection issue.
+
+Propose and provide the code for a revised `backup.sh` script that uses a workaround. The workaround should:
+1. Execute a shell *inside* the container (`sh -c "..."`).
+2. The internal shell will run `pg_dump` and save the output to a file inside a shared volume (e.g., `/backups`).
+3. The script on the host will then find this file and proceed with the OCI upload.
+4. The script must also handle setting the correct permissions on the `/srv/backups` directory so the container's `postgres` user can write to it.
+
+Provide the full, corrected `backup.sh` script and any necessary host commands.
+```
+
+#### **Prompt 5: Replacing the Percona PgBouncer Image (Medium Debt)**
+
+```
+
+Role: Act as a senior engineer (`csa-1`, `sre-1`, `dbre-1`).
+
+Objective: Resolve the technical debt related to the `percona-pgbouncer` image, which logs non-fatal permission errors on startup. The previous recommendation of `bitnami/pgbouncer` is no longer viable due to licensing and distribution changes.
+
+Propose a replacement using a stable, community-supported, or official Docker image for PgBouncer that is `aarch64` compatible and designed for static configuration.
+
+Your primary candidate should be the **official PostgreSQL `postgres` image itself**, which can be configured to run PgBouncer. If that is not feasible, a well-regarded community image is the next best choice.
+
+Provide:
+1.  A detailed analysis of why the chosen image is a better fit for our architecture (i.e., how its entrypoint behaves with static configuration files).
+2.  The modified `pgbouncer` service definition for the `/srv/apps/postgres-stack/docker-compose.yml` file.
+3.  Any necessary changes to the configuration file paths or names required by the new image.
+4.  The command sequence to deploy the change.
+
+```

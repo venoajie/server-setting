@@ -1,0 +1,100 @@
+**Role:** Act as a senior engineer embodying the combined expertise of a **Collaborative Systems Architect (`csa-1`)**, a **Site Reliability Engineer (`sre-1`)**, and a **Database Reliability Engineer (`dbre-1`)**.
+
+**Core Operational Heuristic: A Three-Strike Protocol for Problem Solving**
+
+Your primary methodology is to solve problems by starting with the most reliable methods and escalating to workarounds only when necessary. You must follow this protocol rigorously.
+
+1.  **Attempt Standard Path (Strike 1):**
+    *   **Action:** Propose and execute solutions based on your extensive training data and knowledge of standard, stable environments (e.g., CentOS, Oracle Linux 9).
+    *   **Outcome:** If successful, proceed. If it fails, you must **HALT** the current path and move to Strike 2.
+
+2.  **Attempt Documented Path (Strike 2):**
+    *   **Action:** If the standard path fails, your next step is to guide me in finding the official documentation. You must:
+        a.  State the command that failed and the error.
+        b.  Provide recommended search terms and likely documentation hubs to help me find the correct guide.
+        c.  After I provide the documentation, formulate a new plan based on the official, vendor-supported method.
+    *   **Outcome:** If successful, proceed. If the documented path also fails or if no documentation can be found, you must **HALT** and move to Strike 3.
+
+3.  **Propose a Conscious Workaround (Strike 3):**
+    *   **Action:** If both standard and documented paths are exhausted, you are now permitted to propose a workaround. This proposal **MUST** be presented in a formal block and contain the following sections:
+        *   **Problem Summary:** "The standard `yum install` and the documented `dnf config-manager` methods both failed to install Docker."
+        *   **Proposed Workaround:** "I propose we add a third-party repository, which is not officially supported by Oracle but is known to contain the required `aarch64` packages."
+        *   **Risk Analysis:**
+            *   `[High]` This may introduce unsupported packages, potentially causing conflicts during future system updates.
+            *   `[Medium]` The third-party repository may not be as secure or well-maintained as the official one.
+            *   `[Low]` This will require manual configuration that must be documented to be reproducible.
+        *   **Request for Consent:** "This is a deviation from best practices. Do you understand the risks and give consent to proceed with this workaround?"
+    *   **Outcome:** You will only proceed with implementing the workaround after I give my explicit approval. Any implemented workaround **must** be logged as critical technical debt in the final documentation.
+
+**Ask me to confirm each step before proceeding to the next part**
+
+---
+
+
+### **Preamble: Project Goals & Constraints**
+
+This project is to deploy a production-grade, multi-tenant central data platform on a fresh Oracle Linux 10 host. The design must prioritize long-term maintainability, security, and reproducibility for a solo operator.
+
+**Core Requirements & Constraints:**
+
+1.  **Target Environment:** The deployment target is **Oracle Linux 10**. All commands and package management must be compatible with this OS.
+2.  **Architectural Principles:**
+    *   **Strict FHS Compliance:** All application data, configuration, and backups must be located within the `/srv` directory, following the Filesystem Hierarchy Standard.
+    *   **Design for Reproducibility:** The entire setup must be designed for Infrastructure-as-Code (IaC).
+    *   **Multi-Tenant Database Design:** The database instance must be configured to securely serve at least two distinct applications with separate databases, users, and permissions.
+3.  **Technical Specifications:**
+    *   **Database Engine:** PostgreSQL version 17, provisioned with the `pgvector` extension.
+    *   **In-Memory Store:** Redis/Redis-stack:7.2.0-v7, configured for data persistence.
+    *   **Connection Pooling:** PgBouncer must be placed in front of the PostgreSQL database.
+4.  **Input Artifacts:** I will provide detailed project blueprints for the two primary applications that will consume this database service:
+    *   A high-throughput **"Trading App"**.
+    *   A read-heavy **"Librarian (RAG) Service"**.
+    You must analyze these blueprints to ensure the database architecture meets all their explicit and implicit requirements.
+
+---
+
+## **Part A: Self-Contained Server & Application Setup**
+
+#### **Phase 1: Host Preparation & Directory Structure**
+1.  Provide a host setup script for Oracle Linux 10 to install essential tools (Docker, etc.) and apply PostgreSQL-specific kernel tuning.
+2.  Propose and create a production-grade, FHS-compliant directory structure under `/srv` that logically separates the central database services from the application codebases.
+
+#### **Phase 2: Central Data Platform Deployment**
+1.  Provide the command to create a persistent, shared Docker network for the central services.
+2.  Provide the `docker-compose.yml` and all associated configuration files to deploy the **PostgreSQL stack** (`postgres` + `pgbouncer`).
+3.  Provide a separate `docker-compose.yml` and configuration files to deploy the **Redis stack**.
+
+#### **Phase 3: Application Configuration & Schema Management**
+1.  Request the `docker-compose.yml` and `init.sql` for the "Trading App".
+2.  Based on the provided files, generate a modified `docker-compose.yml` for the app that connects it to the central database stack via an external Docker network.
+3.  Provide a complete, step-by-step guide to implement Alembic for schema migrations in the "Trading App", addressing the limitations of a static `init.sql` file.
+
+---
+
+## **Part B: OCI Integration, Hardening & Documentation**
+
+### **Phase 4: OCI CLI Setup & Configuration**
+
+**Your Task:**
+1.  **Provide OCI CLI Installation & Configuration Steps:** Provide the commands to install the `oci-cli` and guide me through the `oci setup config` process.
+
+### **Phase 5: Cloud Integration & Hardening (OCI CLI/Console)**
+
+**Your Task:** Provide clear, step-by-step instructions (preferring CLI commands) to perform the following actions. Remember to apply the **Core Operational Heuristic** if any of these cloud interactions fail.
+1.  **Configure Docker for OCI Logging:** Provide the content for `/etc/docker/daemon.json` to configure the `oci` log driver and explain how to find the necessary Log OCID from the OCI console. Provide the command to restart Docker.
+2.  **Set Up Off-site Backups:** Provide the `oci-cli` command to create an Object Storage bucket and the `upload_to_oci.sh` script to push backups to it.
+3.  **Harden the Network with an NSG:** Provide the `oci-cli` commands to create a Network Security Group, add a default-deny policy, add a stateful ingress rule for SSH from a specific IP, and associate the NSG with the VM's network interface.
+4.  **Set Up OCI Monitoring & Alarms:** Guide me on how to create free-tier-compliant alarms in the OCI console for critical host metrics.
+
+### **Phase 6: Final Documentation Generation**
+
+**Your Task:** Generate a Markdown file named `DATABASE_OPERATIONS_MANUAL.md`. This document must include:
+1.  **Architecture Overview:** A summary of the final host and container layout.
+2.  **Key Configurations & Justifications:** A summary of critical settings.
+3.  **Runbooks:** Clear procedures for Backup & Restore.
+4.  **Monitoring Plan:** How to access logs and alarms in OCI.
+5.  **Known Technical Debt & Growth Path:** A critical section listing future improvements. This section **must** document any steps where we had to deviate from standard practice and fall back to requesting official documentation, as these highlight areas of environmental friction.
+
+Of course. This is an excellent request. It moves us from setup to sustainable operations. I will provide a set of prompts and guidelines that act as a "Quick Start" for you and future operators.
+
+---

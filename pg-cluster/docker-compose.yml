@@ -14,6 +14,7 @@ services:
       - ./config/postgres/postgresql.prod.conf:/etc/postgresql/postgresql.conf
       - ./config/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
       - ./logs/postgres:/var/log/postgresql
+      - ./init-db:/docker-entrypoint-initdb.d
     command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
     networks:
       - db_network

@@ -1,145 +1,144 @@
-# Database Operations Manual: Central PostgreSQL Cluster
+**`CENTRAL_DB_PLATFORM_MANUAL_V1.md`**
+```markdown
+# Central Database Platform: Operations Manual v1.0
 
-**Version:** 1.1 (Final)
-**Date:** 2025-09-12
-**Primary Operator:** `opc` user on `prod` server
+This document provides the essential information for operating, maintaining, and integrating applications with the central data platform.
 
-## 1. Architecture Overview
+## 1. System Architecture
 
-This document outlines the operations for the central PostgreSQL database stack deployed on the OCI VM `prod`. The architecture is a decoupled, multi-container system orchestrated by Docker Compose, designed for reliability, security, and maintainability.
+-   **Host:** Oracle Linux 10 (`aarch64`) on OCI.
+-   **Primary Services:**
+    -   **PostgreSQL 17:** The core relational database.
+    -   **Redis 7.2:** The in-memory data store.
+    -   **PgBouncer:** A lightweight connection pooler for PostgreSQL.
+-   **Containerization:** All services are deployed via Docker and Docker Compose.
+-   **Networking:** All platform services and connected applications communicate over a shared Docker bridge network named `central-data-platform`.
+-   **FHS Compliance:** All persistent data and configuration are located under `/srv` for predictable management.
 
-### 1.1. Host & Container Layout
+## 2. Connecting a New Application
 
-The system is deployed across dedicated directories in `/opt`, enforcing a strict separation of concerns between the database infrastructure, applications, and supporting services.
+To connect a new application to the platform, follow these steps:
 
-```plaintext
-/opt/
-├── pg-cluster/             # The Database Infrastructure Stack
-│   ├── docker-compose.yml  # Defines db, pgbouncer, exporter
-│   ├── .env                # Secrets for the database stack
-│   ├── bin/                # Backup and maintenance scripts
-│   ├── config/             # Persistent configs (postgres, pgbouncer)
-│   ├── logs/               # Host-mounted logs for startup debugging
-│   └── backups/            # Local storage for pg_dump files
-│
-├── apps/                   # Application Stacks
-│   └── trading-app/        # The primary application
-│       ├── docker-compose.yml
-│       └── ... (application source code)
-│
-├── secrets/                # Centralized, shared secrets
-│   └── trading_app_password.txt
-│
-└── fluentd/                # Centralized Log Forwarding Service
-    ├── docker-compose.yml
-    ├── .env
-    ├── build/
-    │   └── Dockerfile
-    └── config/
-```
+1.  **Request a Database and User:** A dedicated database and user must be provisioned for your application to ensure multi-tenant isolation. Provide the application name to the platform operator.
+2.  **Receive Credentials:** The operator will provide you with a username, password, and database name.
+3.  **Configure Your Application:**
+    -   **Database Host:** `pgbouncer`
+    -   **Database Port:** `6432`
+    -   **Redis Host:** `redis-stack`
+    -   **Redis Port:** `6379`
+4.  **Docker Compose Integration:**
+    -   Your application's `docker-compose.yml` must declare the `central-data-platform` network as external:
+        ```yaml
+        networks:
+          central-data-platform:
+            external: true
+        ```
+    -   Each of your application's services must be attached to this network.
 
-### 1.2. Service Interaction Diagram
+## 3. Maintenance & Troubleshooting
 
-```mermaid
-graph TD
-    subgraph OCI Cloud
-        A[OCI Object Storage]
-        B[OCI Logging]
-    end
-
-    subgraph Host VM: prod
-        subgraph trading-app Stack
-            C[App Services: executor, analyzer, etc.] -- Port 6432 --> D
-        end
-
-        subgraph pg-cluster Stack
-            D[PgBouncer] -- Port 5432 --> E[PostgreSQL]
-            F[Postgres Exporter] -- Port 5432 --> E
-        end
-
-        subgraph System Services
-            G[Fluentd] -- reads --> H{Docker Logs}
-            I[Backup Cron Job] -- executes --> J[backup.sh]
-            K[Upload Cron Job] -- executes --> L[upload_to_oci.sh]
-        end
-    end
-
-    C -- TCP --> D
-    D -- TCP --> E
-    F -- TCP --> E
-    J -- writes --> M[Local Backup Files]
-    L -- reads --> M
-    L -- uploads --> A
-    H -- collected from --> C & D & E & F
-    G -- forwards --> B
-```
-
-## 2. Oracle Linux 10 & ARM64: Technical Challenges & Solutions
-
-**Maintainer Advisory:** The deployment on a new Oracle Linux 10 (`aarch64`) instance presented significant, non-obvious challenges. The solutions below were critical for a successful deployment and should be the first point of reference for troubleshooting similar issues.
-
-- **Challenge 1: Docker Engine Installation**
-    - **Problem:** Standard Docker installation methods failed. The official DNF repository for Oracle Linux 10 did not exist (404 error), and the official `get.docker.com` convenience script did not support the `ol/10` distribution.
-    - **Solution:** We manually configured `dnf` to use the official Docker repository for **CentOS 9**. As Oracle Linux is a downstream derivative of RHEL (as is CentOS), this provided a stable, compatible, and package-manager-aware installation method.
-
-- **Challenge 2: ARM64 (`aarch64`) Container Image Incompatibility**
-    - **Problem:** Multiple pre-built community and official Docker images failed to run, producing `manifest unknown` or `exec format error` messages. This affected our initial choices for PgBouncer and Fluentd.
-    - **Solution:** We adopted a "build from source" strategy. For both `PgBouncer` and `Fluentd`, we created custom `Dockerfile`s. This involved starting from a stable, multi-platform base image (`postgres:16` or `debian:bookworm-slim`) and using the native package manager (`apt`) and compilers (`gem`) to build a native `arm64` version of the required software. This is the definitive pattern for ensuring compatibility on ARM architectures.
-
-- **Challenge 3: System Package Dependency Conflicts**
-    - **Problem:** A default `dnf update` failed due to a dependency conflict between the pre-installed `python3-oci-sdk` (requiring an older `pyOpenSSL`) and the newer version of `pyOpenSSL` available in the EPEL repository.
-    - **Solution:** The system update command was modified to `dnf update -y --exclude=python3-pyOpenSSL`. This preserves the integrity of the pre-installed OCI tools while allowing the rest of the system to be patched.
-
-- **Challenge 4: OCI CLI Syntax for Complex Arguments**
-    - **Problem:** The `oci network vnic update` command repeatedly failed with `Got unexpected extra argument` errors, despite various shell quoting attempts.
-    - **Solution:** The most robust method was to bypass shell quoting entirely by passing the arguments via a temporary JSON file using the `--from-json file://...` flag. For one-off actions, performing the association in the OCI web console is the simplest workaround.
-
-## 3. Key Configurations & Justifications
-
-- **Database Engine:** `pgvector/pgvector:pg17` was chosen to support future vector embedding workloads.
-- **Connection Pooling:** A **custom PgBouncer image** was built from the `postgres:16` base to ensure ARM64 compatibility. It runs in `transaction` pooling mode to handle high connection churn from the microservices.
-- **Log Forwarding:** A **custom Fluentd image** was built from `debian:bookworm-slim` to resolve ARM64 binary incompatibilities. This service provides a resilient, decoupled mechanism for shipping all container logs to OCI.
-- **Schema Management:** `Alembic` provides version-controlled, repeatable, and non-destructive schema migrations. The initial schema was created from `init.sql` in migration `0e8959d7e93b`.
-- **Secret Management:** A single source of truth for the application database password is held in `/opt/secrets/trading_app_password.txt`.
-
-## 4. Runbooks
-
-### 4.1. Backup & Restore
-
-#### Local Backup
-- **Automation:** A cron job runs `/opt/pg-cluster/bin/backup.sh` daily at 03:05 GMT.
-- **Process:** Performs a `pg_dump` and stores it in `/opt/pg-cluster/backups/daily/`.
-- **Retention:** The script automatically prunes local backups older than 7 days.
-
-#### Off-site Backup
-- **Automation:** A cron job runs `/opt/pg-cluster/bin/upload_to_oci.sh` daily at 03:15 GMT.
-- **Process:** Uploads the latest local backup to the OCI Object Storage bucket.
-
-#### Restore Procedure (Emergency)
-1.  **Identify Backup:** Locate the desired backup file from OCI Object Storage or local backups.
-2.  **Stop Application:** `cd /opt/apps/trading-app && sudo docker compose down`
-3.  **Connect to DB:** `sudo docker exec -it postgres_db psql -U postgres_admin -d postgres`
-4.  **Drop & Recreate:** Inside `psql`, drop the old database and create a new empty one.
-    ```sql
-    DROP DATABASE trading_db;
-    CREATE DATABASE trading_db;
-    \q
-    ```
-5.  **Execute Restore:** Use `pg_restore` to load the backup file.
+-   **Service Management:** All platform services are managed via `docker compose` in their respective directories (`/srv/apps/postgres-stack`, `/srv/apps/redis-stack`).
+-   **Logs:** All container logs are centralized in the OCI Logging service. Check the configured Log Group in the OCI console for troubleshooting.
+-   **Monitoring:** Host CPU and Memory are monitored in OCI. Alarms will be sent via email for critical thresholds.
+-   **Checking DB Size:**
     ```bash
-    gunzip -c /path/to/backup-file.sql.gz.custom | sudo docker exec -i postgres_db pg_restore -U postgres_admin -d trading_db
+    # Connect to the container
+    sudo docker exec -it postgres-db psql -U platform_admin -d postgres
+
+    # Run sizing query
+    SELECT pg_size_pretty(pg_database_size('your_db_name'));
     ```
-6.  **Restart Application:** `cd /opt/apps/trading-app && sudo docker compose --profile full up -d`
 
-## 5. Monitoring Plan
+## 4. Known Technical Debt & Critical Reminders
 
-- **Host Metrics (CPU, Memory):** Alarms are configured in the OCI Console under **Compute -> Instances -> [Instance Name] -> Alarms**. Notifications are sent via the `critical-server-alerts` topic.
-- **Container Logs:** All container `stdout`/`stderr` logs are captured by Docker as JSON files. A dedicated **Fluentd container** (in `/opt/fluentd`) tails these files and forwards them to **OCI Logging**. Logs can be explored in the OCI Console under **Observability & Management -> Logs**.
-- **Database Metrics:** The `postgres_exporter` service exposes detailed PostgreSQL metrics on port `9187`.
+This platform is operational but has known issues and environmental constraints that require careful management.
 
-## 6. Future Improvements & Growth Path
+-   **[CRITICAL] Backup Automation is Non-Functional:** The automated backup script at `/srv/apps/backup.sh` is not working. The root cause is a complex I/O issue with `docker exec`. **Manual backups are currently required for disaster recovery.** This is the highest priority item to resolve.
+-   **[Medium] PgBouncer Entrypoint Errors:** The `percona-pgbouncer` container logs non-fatal permission errors on startup. While the service works, this indicates a minor configuration mismatch that should be investigated.
+-   **[IMPORTANT] Oracle Linux 10 & ARM64 Architecture Considerations:**
+    -   **Package Availability:** Not all software is available in the default OL10 repositories. The `htop` utility, for example, required enabling the EPEL repository. Expect to manage repositories carefully.
+    -   **Docker Image Compatibility:** The `aarch64` (ARM64) architecture is not universally supported by all Docker image authors. We encountered this with the first PgBouncer image. **Always verify `linux/arm64/v8` or `linux/aarch64` support on Docker Hub before selecting an image.** This is the most common point of failure for this environment.
 
-- **High Availability (HA):** The current setup has a single point of failure. A future architecture should include a standby PostgreSQL replica and a floating IP for automated failover.
-- **Advanced Monitoring:** Deploy a full Prometheus/Grafana stack to scrape the `postgres_exporter` and `node-exporter` metrics, providing dashboards and more sophisticated alerting.
-- **Secrets Management:** For a multi-server or team environment, migrate secrets from local files to a dedicated secrets management service like OCI Vault.
-- **Data Lifecycle Management:** Implement automated policies in the OCI Object Storage bucket to move older backups to cheaper Infrequent Access or Archive storage tiers.
+```
+
+---
+
+### **2. Memo to Application Maintainers**
+
+**To:** Trading App Maintainer, Librarian Service Maintainer
+**From:** Platform Engineering (`csa-1`, `sre-1`, `dbre-1`)
+**Date:** 2025-09-14
+**Subject:** MANDATORY: Migration to Centralized Data Platform and Current Application Status
+
+Team,
+
+This memo is to inform you that the new Central Data Platform is now operational. As per our architectural roadmap, all stateful services are being migrated from self-contained databases to this shared, production-grade platform.
+
+**What This Means for You:**
+
+1.  **New Reality:** Your applications (`trading-app`, `librarian-service`) no longer manage their own PostgreSQL or Redis instances. They are now clients of the central platform.
+2.  **Configuration Changes:** The `docker-compose.yml` files for your applications have been modified to connect to the central services (`pgbouncer`, `redis-stack`) over the shared `central-data-platform` network.
+3.  **Credential Management:** Database credentials are now managed centrally. Your applications read their passwords from Docker secrets mounted from the host filesystem.
+
+**Current Application Status & Required Actions:**
+
+-   **Trading App:** The application is **running but in a degraded state**. It is successfully connected to the central PostgreSQL and Redis instances. However, it is failing to authenticate with the external Deribit API due to invalid credentials.
+    -   **ACTION REQUIRED:** You must investigate and provide the correct Deribit API key and secret in the files located at `/srv/apps/trading-app/secrets/`.
+
+-   **Librarian Service:** The application is **currently failing to start**. It is successfully connecting to the central database, but it crashes on initialization due to a `ValidationError`.
+    -   **ACTION REQUIRED:** The application requires three mandatory environment variables (`OCI_BUCKET_NAME`, `OCI_PROJECT_NAME`, `OCI_INDEX_BRANCH`) that are missing from its `server.env` configuration file. You must provide these values to resolve the startup failure.
+
+Please prioritize these actions to bring your applications to a fully healthy state on the new platform. Refer to the `CENTRAL_DB_PLATFORM_MANUAL_V1.md` for details on the new architecture.
+
+---
+
+### **3. General Database Readiness Testing**
+
+This is a quick, high-level assessment of the database's readiness for production workloads.
+
+**1. Connection Pooling Test (PgBouncer):**
+   - **Objective:** Verify that PgBouncer is correctly pooling connections.
+   - **Method:** We will check the active connection stats in PgBouncer.
+   - **Command:**
+     ```bash
+     # Connect to the pgbouncer admin console
+     sudo docker exec -it pgbouncer psql -h localhost -p 6432 -U platform_admin pgbouncer
+
+     # Inside psql, run the command to show pool stats
+     SHOW POOLS;
+     \q
+     ```
+   - **Success Criteria:** The output should show pools for `trading_db` and `librarian_db`. The `cl_active` (client active) and `sv_active` (server active) columns should be low, indicating that connections are being efficiently reused, even with multiple application services running.
+
+**2. Basic Write/Read Throughput Metric (Benchmark):**
+   - **Objective:** Get a rough baseline of the database's write performance for a simple workload.
+   - **Method:** Use `pgbench`, the standard PostgreSQL benchmarking tool, to initialize a test dataset and run a simple transaction benchmark.
+   - **Commands:**
+     ```bash
+     # Step A: Initialize a test dataset in a new test database
+     sudo docker exec -it postgres-db psql -U platform_admin -c "CREATE DATABASE pgbench;"
+     sudo docker exec -it postgres-db pgbench -i -U platform_admin pgbench
+
+     # Step B: Run a 1-minute benchmark with 8 concurrent clients
+     sudo docker exec -it postgres-db pgbench -U platform_admin -c 8 -T 60 pgbench
+     ```
+   - **Metric to Record:** The command will output a "tps" (transactions per second) value. For this hardware (OCI Ampere A1), a healthy baseline for this simple test would be in the range of **500-1500 TPS**. A significantly lower number could indicate a disk I/O bottleneck. This value should be recorded as our initial performance baseline.
+
+**3. Extension Functionality Test (`pgvector`):**
+   - **Objective:** Verify that the `vector` type and its functions are fully operational.
+   - **Method:** Connect to `librarian_db` and perform a simple create, insert, and query operation using a vector.
+   - **Commands:**
+     ```bash
+     # Connect to the librarian_db
+     sudo docker exec -it postgres-db psql -U platform_admin -d librarian_db
+
+     # Inside psql, run these commands:
+     CREATE TABLE test_vectors (id serial primary key, embedding vector(3));
+     INSERT INTO test_vectors (embedding) VALUES ('[1,2,3]'), ('[4,5,6]');
+     SELECT * FROM test_vectors ORDER BY embedding <-> '[1,2,3]' LIMIT 1;
+     DROP TABLE test_vectors;
+     \q
+     ```
+   - **Success Criteria:** The `SELECT` query should execute without error and return the row with the `[1,2,3]` embedding. This confirms the extension is correctly installed and its operators are working.
+
+   

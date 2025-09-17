@@ -1,0 +1,18 @@
+#### **Prompt 1: Adding a New Application to the Platform**
+
+```
+Role: Act as a senior engineer (`csa-1`, `sre-1`, `dbre-1`).
+
+Objective: Guide me through the process of onboarding a new application named "[APP_NAME]" onto the central data platform.
+
+The application requires:
+- A dedicated PostgreSQL database named "[DB_NAME]".
+- A dedicated PostgreSQL user named "[USER_NAME]".
+- [Optional: Mention if pgvector is needed, e.g., "The database requires the 'vector' extension."]
+
+Provide the complete, step-by-step sequence of commands to:
+1. Generate a secure password and create the necessary Docker secret file on the host.
+2. Connect to the `postgres-db` container and run the `psql` commands to create the database and user, and grant the correct permissions.
+3. Update the PgBouncer `userlist.txt` file to allow the new user to connect.
+4. Restart the PgBouncer service to apply the changes.
+```
