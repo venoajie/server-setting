@@ -97,4 +97,145 @@ This project is to deploy a production-grade, multi-tenant central data platform
 
 Of course. This is an excellent request. It moves us from setup to sustainable operations. I will provide a set of prompts and guidelines that act as a "Quick Start" for you and future operators.
 
+### **Phase 7: Server Redeployment**
+
+The procedures 1-7 above has eaxecuted and the server has deployed successfully. The deployment process were hard and stressful, mostly because the architecture of linux oracle 10 and drift in oci documentation itself. Some hacks and work around here and there were taken place.
+As i just reorganized the OCI cloud, i want to redeploy the currnet running server above: shut down it, and recreate in new compartment. 
+To avoid the problems at the previous deployment, i want to replicate the steps in previous process. For that purpose, i will share you with the documentation and necessary files. Ask me for additional files if you think it needed. Ensure if you have capture all necessary settings from current running server. If you see opportunities to improve the process, something that i may missed from previous process, just let me know.
+All you have to do is the same as the prompt given to you in phase 1-6. The difference is, instead of creating the procedure yourself, you reiterate the process from the provided documents and improve the process as well as the documentation. Utilize the document as learning lesson toavoid the problems/improve the processs.
+Please guide me to redeploy this. 
+
+
+### **Additional context**
+
+I just migrated all resources in the cloud from root to a separate compartment. Current compartments (each with its own vnics): 
+shared-services: will be hosted compute engine for postgres and redis
+RAG-Project: will be hosted serverless function
+Root: previously, all of the above compartments consolidated into root. Now, the root contains nothing
+The non-root compartments setting is not completed yet. 
+Based on above situations, dont assume on any naming/variables/settings related to OCI. 
+
+### **Known problems: Immediate Improvements to the currnet Process**
+
+Fix the Backup Script: The current method using docker exec and redirection is prone to failure. We will use docker compose exec and a volume mount for reliable backups from the start.
+
+Centralize Secret Management: Secrets are scattered (.env files, userlist.txt, individual secret files). We will create a single, secure master secrets file on the new host to source all credentials, improving security and reproducibility.
+**Proposed Solution:**
+1.  **Location:** We will place the master secrets file at **`/srv/config/platform.env`**.
+    *   **Reasoning:** This maintains our core principle of a self-contained, portable, and FHS-compliant application stack under `/srv`. The entire platform's state can be backed up and restored from a single directory tree. This is paramount for the "reproducibility" and "solo operator" constraints.
+
+2.  **Permissions:** We will apply your recommended strict permission model to this file.
+    *   **Reasoning:** Security posture, the master secrets file, regardless of location, should be owned by `root` and be readable only by `root`.
+    *   **Commands:**
+        ```bash
+        sudo touch /srv/config/platform.env
+        sudo chown root:root /srv/config/platform.env
+        sudo chmod 600 /srv/config/platform.env
+        sudo vim /srv/config/platform.env # Requires sudo to edit
+
+Document the "Why": The original manual explains the "what". We will add "why" certain choices were made (e.g., the specific PgBouncer image was chosen for ARM compatibility).
+
+Parameterize the Host Setup: The host_setup.sh is good. We will make it more robust by adding checks for success after each step.
+
+Add Healthchecks: We will ensure healthchecks are defined in all docker-compose.yml files for better robustness.
+
+### **Some current operational snapshots**
+
+opc@prod:/srv/apps$ sudo docker network inspect central-data-platform
+[
+    {
+        "Name": "central-data-platform",
+        "Id": "e5f96ba7298eac6be8a384f22a1ba2ba7062c886c928149c80a2c67ba782e017",
+        "Created": "2025-09-13T11:51:08.143181939Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "13ec2a3345e04b65009bbe61b02883e40665d8653003c77aab3ee5d531f24bdc": {
+                "Name": "redis-stack",
+                "EndpointID": "1cdc5e39b86687c5c636c614f1074e9e9138e9736ca2b35419f7d54008304ce8",
+                "MacAddress": "fa:c9:9a:43:90:cf",
+                "IPv4Address": "172.18.0.5/16",
+                "IPv6Address": ""
+            },
+            "3a03d1507f193ee32560f25a984f5a4c319a9c92e3c22f1cec0fef3c840560b4": {
+                "Name": "trading-app-analyzer-1",
+                "EndpointID": "67dc4a5f951431e0c506b214a157886c91ff6b653f39ac4a29c8d40449b5f13f",
+                "MacAddress": "da:f9:62:c0:01:b9",
+                "IPv4Address": "172.18.0.4/16",
+                "IPv6Address": ""
+            },
+            "432316c5c656c2d74319aedcec1376a15464ffb82be5852a7ef44392e7cd58c1": {
+                "Name": "postgres-db",
+                "EndpointID": "88112e9df74e3ed927441c2290b4fe060e0154be07e6a8bce123a93c0eed1f6d",
+                "MacAddress": "42:e5:76:11:3c:cf",
+                "IPv4Address": "172.18.0.6/16",
+                "IPv6Address": ""
+            },
+            "5d80b098f64d637cca5804731066b3a9ea5cd3045eec7dc7fb0e03b95be2b4fb": {
+                "Name": "librarian-service",
+                "EndpointID": "0f8497f0aa6e8c498876aceea5cf739845214ebc5b5fce91a1c377dda9265bda",
+                "MacAddress": "b2:db:df:6b:0c:0b",
+                "IPv4Address": "172.18.0.8/16",
+                "IPv6Address": ""
+            },
+            "8fb05e22b95127556fd5f02904e3c7b6fe8d6b2a2d27b5dd9eddd009cc0e037a": {
+                "Name": "trading-app-receiver-1",
+                "EndpointID": "480b421b0dc942fb54fc94343ea375c1d34bbe727eee43b6e8cd188dd9280f87",
+                "MacAddress": "92:21:db:b2:51:e7",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            },
+            "e30bdc7eb0847686846baf891a826d04daefd7caf8c816bb12ce6f3ef515dea0": {
+                "Name": "pgbouncer",
+                "EndpointID": "efe6378365568126bfb213ca4bef6c304797671f89a25b798913e3ee0bc5efc0",
+                "MacAddress": "26:f2:c9:e3:1a:65",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            },
+            "f58146c5778d4ad25e8796a4e7db72a48e1766d05401f2cd747a1a87cbfbd610": {
+                "Name": "trading-app-executor-1",
+                "EndpointID": "8d4324bd56e2a24516aaf288aad00fd7c829b8102b94f9bdfda0e49d48770614",
+                "MacAddress": "0e:1f:2b:fc:1a:ab",
+                "IPv4Address": "172.18.0.7/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {}
+    }
+]
+opc@prod:/srv/apps$ sudo docker ps --filter "name=postgres-db|pgbouncer|redis-stack" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+NAMES         STATUS                PORTS
+pgbouncer     Up 2 days             0.0.0.0:6432->6432/tcp, [::]:6432->6432/tcp
+postgres-db   Up 2 days (healthy)   5432/tcp
+redis-stack   Up 3 days             0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp, 0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+opc@prod:/srv/apps$ df -h /srv
+Filesystem                  Size  Used Avail Use% Mounted on
+/dev/mapper/ocivolume-root   25G   20G  4.8G  81% /
+
+opc@prod:/srv/apps$ sudo docker images --filter "reference=pgvector/pgvector:pg17" --filter "reference=perconalab/percona-pgbouncer:1.24.1" --filter "reference=redis/redis-stack:7.2.0-v7" --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}"
+REPOSITORY                     TAG        IMAGE ID
+perconalab/percona-pgbouncer   1.24.1     dba99848d400
+pgvector/pgvector              pg17       608f002b7d65
+redis/redis-stack              7.2.0-v7   085fb4610116
+
 ---

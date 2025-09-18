@@ -1,0 +1,21 @@
+
+services:
+  redis:
+    image: redis/redis-stack:7.2.0-v7
+    container_name: redis-stack
+    restart: always
+    ports:
+      - "6379:6379" # Standard Redis port
+      - "8001:8001" # RedisInsight GUI
+    environment:
+      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD}
+    volumes:
+      - /srv/data/redis:/data
+      # Note: The redis-stack image does not easily support an external redis.conf.
+      # We enforce the password via environment variable, which is the supported method for this image.
+    networks:
+      - central-data-platform
+
+networks:
+  central-data-platform:
+    external: true

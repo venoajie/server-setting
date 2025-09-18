@@ -56,7 +56,7 @@ echo "Installing the official EPEL 10 repository configuration..."
 sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
 
 echo "Installing essential tools from base and EPEL repositories..."
-sudo dnf install -y git htop jq
+sudo dnf install -y git tree jq atop htop 
 
 # --- SRE-1 & SSA-1: Docker Installation (Repository Method) ---
 echo "Manually configuring DNF to use the official Docker repository for CentOS 9..."

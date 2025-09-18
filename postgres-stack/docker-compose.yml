@@ -1,0 +1,43 @@
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: postgres-db
+    restart: always
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=platform_admin
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD} # Loaded from .env file
+    volumes:
+      - /srv/data/postgres:/var/lib/postgresql/data
+    networks:
+      - central-data-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_admin -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    image: perconalab/percona-pgbouncer:1.24.1
+    container_name: pgbouncer
+    restart: always
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=pgbouncer
+      - DB_PASSWORD=${PGBOUNCER_PASSWORD} # Loaded from .env file
+      - DB_NAME=postgres
+    ports:
+      - "6432:6432" # Expose PgBouncer to the host and other containers
+    volumes:
+      - /srv/config/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+      - /srv/config/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    networks:
+      - central-data-platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  central-data-platform:
+    external: true
