@@ -1,4 +1,3 @@
-
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -7,7 +6,7 @@ services:
     environment:
       - POSTGRES_DB=postgres
       - POSTGRES_USER=platform_admin
-      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD} # Loaded from .env file
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
     volumes:
       - /srv/data/postgres:/var/lib/postgresql/data
     networks:
@@ -17,7 +16,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
   pgbouncer:
     image: perconalab/percona-pgbouncer:1.24.1
     container_name: pgbouncer
@@ -25,18 +23,29 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_USER=pgbouncer
-      - DB_PASSWORD=${PGBOUNCER_PASSWORD} # Loaded from .env file
+      - DB_PASSWORD=${PGBOUNCER_PASSWORD}
       - DB_NAME=postgres
+      - POSTGRES_ADMIN_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+      - TRADING_APP_DB_PASSWORD=${TRADING_APP_DB_PASSWORD}
+      - LIBRARIAN_APP_DB_PASSWORD=${LIBRARIAN_APP_DB_PASSWORD}
     ports:
-      - "6432:6432" # Expose PgBouncer to the host and other containers
+      - "6432:6432"
+    entrypoint: /app/pgbouncer_entrypoint.sh
     volumes:
-      - /srv/config/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
-      - /srv/config/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - /srv/config/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - /srv/config/pgbouncer/userlist.txt.template:/etc/pgbouncer/userlist.txt.template:ro
+      - ./pgbouncer_entrypoint.sh:/app/pgbouncer_entrypoint.sh:ro
     networks:
       - central-data-platform
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U platform_admin -d pgbouncer"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
 networks:
   central-data-platform:
