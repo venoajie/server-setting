@@ -29,6 +29,25 @@ This section documents the reasoning behind key design choices to ensure long-te
     -   **Problem:** The `perconalab/percona-pgbouncer` image is minimal and does not contain the `psql` or `pg_isready` client tools, making authenticated health checks impossible.
     -   **Solution:** The `nc -z` (netcat) command performs a simple, unauthenticated check to confirm the port is open. Combined with a `start_period` of 20 seconds, this provides a reliable health check that is compatible with the minimal container environment.
 
+### 2.2. Vault & Secret Management
+
+-   **Vault:** `RAG-Project-Vault`
+-   **Secret:** `librarian-db-connection`
+-   **Function Configuration (`DB_SECRET_OCID`):** The function **must** be configured with the OCID of the **Secret** (`ocid1.vaultsecret...`), not the Vault.
+-   **Secret Content:** The secret must contain a **structured JSON object** with the database credentials, using the **Private IP** of the database VM.
+    -   Format:
+        ```json
+        {
+          "username": "librarian_user",
+          "password": "YOUR_DATABASE_PASSWORD",
+          "host": "10.0.0.146",
+          "port": 6432,
+          "dbname": "librarian_db"
+        }
+        ```
+-   **CRITICAL NOTE on Connection String Dialect:** The serverless function code constructs the database connection string internally. It uses the `postgresql+psycopg2://` dialect to ensure compatibility with SQLAlchemy's parameter expansion features for `IN` clauses, even while using the modern `psycopg` (v3) library. This is a deliberate choice for robustness.
+
+
 ## 3. Runbooks
 
 ### 3.1. Critical Label Data Backup (High-Frequency)
