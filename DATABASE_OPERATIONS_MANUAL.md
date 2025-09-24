@@ -76,8 +76,23 @@ This procedure performs a full structural and data dump of the databases.
         LOG_PATH=$(docker inspect --format='{{.LogPath}}' <container_name>)
         sudo tail -f $LOG_PATH
         ```
+## 5. External Access & Firewall
+The database is accessible to the serverless ingestor function via the PgBouncer port (`6432`). This requires a specific ingress rule in the VCN Security List and an open port in the host's `firewalld`. See `CLOUD_INFRASTRUCTURE_GUIDE.md` for the authoritative VCN configuration."
 
-## 5. Known Technical Debt & Growth Path
+### 5.1. Host Firewall and Docker Networking
+
+"If an external service (like the OCI Function) times out when connecting, but the OCI Network Path Analyzer shows the path is 'Reachable', the problem is on the host. Follow these steps:"
+	1.  "**Check the host firewall:** `sudo firewall-cmd --list-all`. Ensure the required port (e.g., `6432/tcp`) is listed."
+	2.  "**Check the listening service:** `sudo ss -tlnp | grep 6432`. Confirm the service is listening on `0.0.0.0` and not `127.0.0.1`."
+	3.  "**Reset Docker's network rules (The 'Big Hammer'):** If the above are correct, Docker's internal `iptables` rules may be stale. Flush the rules and restart Docker to force a rebuild:
+		```bash
+		sudo iptables -F
+		sudo iptables -t nat -F
+		sudo systemctl restart docker
+		```"
+
+
+## 6. Known Technical Debt & Growth Path
 
 -   **[CRITICAL] Trading App Password Workaround:**
     -   **Problem:** The `trading-app` has a critical bug where it incorrectly uses its database password as the database port.
